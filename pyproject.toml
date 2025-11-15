@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Консольное приложение валютного кошелька"
 authors = ["Tonkushin"]
 readme = "README.md"
-packages = [{include = "finalproject_tonkushin_m25_555"}]
+packages = [{include = "valutatrade_hub"}]
 
 [tool.poetry.dependencies]
 python = "^3.10"
@@ -14,7 +14,7 @@ prettytable = "^3.0.0"
 ruff = "^0.14.5"
 
 [tool.poetry.scripts]
-project = "finalproject_tonkushin_m25_555.main:main"
+project = "main:main"
 
 [build-system]
 requires = ["poetry-core"]
