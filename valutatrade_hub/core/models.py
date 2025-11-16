@@ -370,4 +370,3 @@ class Portfolio:
                     continue
 
         return total_value
-
