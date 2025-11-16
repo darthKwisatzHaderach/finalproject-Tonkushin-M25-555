@@ -143,7 +143,6 @@ class ExchangeRateApiClient(BaseApiClient):
             for fiat_code in self.config.FIAT_CURRENCIES:
                 if fiat_code in rates_data:
                     rate = float(rates_data[fiat_code])
-                    # Сохраняем курс как FIAT_USD
                     pair_key = f"{fiat_code}_{base_currency}"
                     rates[pair_key] = rate
 

@@ -25,44 +25,24 @@ from valutatrade_hub.core.utils import (
 from valutatrade_hub.decorators import log_action
 from valutatrade_hub.infra.settings import SettingsLoader
 
-# Получаем экземпляр SettingsLoader (Singleton)
 _settings = SettingsLoader()
 
-# Глобальная переменная для текущего залогиненного пользователя
 _current_user: User | None = None
 _current_portfolio: Portfolio | None = None
 
 
 def get_current_user() -> User | None:
-    """
-    Получить текущего залогиненного пользователя.
-
-    Returns:
-        Объект User или None, если пользователь не залогинен
-    """
+    """Получить текущего залогиненного пользователя."""
     return _current_user
 
 
 def get_current_portfolio() -> Portfolio | None:
-    """
-    Получить портфель текущего пользователя.
-
-    Returns:
-        Объект Portfolio или None, если пользователь не залогинен
-    """
+    """Получить портфель текущего пользователя."""
     return _current_portfolio
 
 
 def require_login() -> User:
-    """
-    Проверить, что пользователь залогинен.
-
-    Returns:
-        Объект User текущего пользователя
-
-    Raises:
-        RuntimeError: Если пользователь не залогинен
-    """
+    """Проверить, что пользователь залогинен."""
     user = get_current_user()
     if user is None:
         raise RuntimeError("Необходимо войти в систему")
@@ -70,15 +50,7 @@ def require_login() -> User:
 
 
 def require_portfolio() -> Portfolio:
-    """
-    Проверить, что портфель загружен.
-
-    Returns:
-        Объект Portfolio текущего пользователя
-
-    Raises:
-        RuntimeError: Если портфель не загружен
-    """
+    """Проверить, что портфель загружен."""
     portfolio = get_current_portfolio()
     if portfolio is None:
         raise RuntimeError("Портфель не загружен")
@@ -100,26 +72,20 @@ def register_user(username: str, password: str) -> tuple[User, int]:
     Raises:
         ValueError: Если имя пользователя уже занято или пароль слишком короткий
     """
-    # Проверка длины пароля
     if len(password) < 4:
         raise ValueError("Пароль должен быть не короче 4 символов")
 
-    # Загружаем список пользователей
     users_data = load_json(USERS_FILE)
 
-    # Проверка уникальности username
     username_lower = username.lower()
     for user_data in users_data:
         if user_data.get("username", "").lower() == username_lower:
             raise ValueError(f"Имя пользователя '{username}' уже занято")
 
-    # Генерируем user_id (автоинкремент)
     if users_data:
         user_id = max(user.get("user_id", 0) for user in users_data) + 1
     else:
         user_id = 1
-
-    # Генерируем соль и хешируем пароль
     salt = secrets.token_hex(8)
     password_with_salt = password + salt
     hashed_password = hashlib.sha256(
@@ -136,7 +102,6 @@ def register_user(username: str, password: str) -> tuple[User, int]:
         registration_date=registration_date,
     )
 
-    # Сохраняем пользователя в users.json
     user_data = {
         "user_id": user_id,
         "username": username,
@@ -262,6 +227,15 @@ def login_user(username: str, password: str) -> User:
     return user
 
 
+def logout_user() -> None:
+    """
+    Выйти из системы (очистить сессию).
+    """
+    global _current_user, _current_portfolio
+    _current_user = None
+    _current_portfolio = None
+
+
 def get_portfolio_info(base_currency: str | None = None) -> dict:
     """
     Получить информацию о портфеле текущего пользователя.
@@ -294,7 +268,6 @@ def get_portfolio_info(base_currency: str | None = None) -> dict:
     user = require_login()
     portfolio = require_portfolio()
 
-    # Получаем базовую валюту из конфигурации, если не указана
     if base_currency is None:
         base_currency = _settings.get("default_base_currency", "USD")
 
@@ -420,7 +393,6 @@ def buy_currency(
     require_login()
     portfolio = require_portfolio()
 
-    # Получаем базовую валюту из конфигурации, если не указана
     if base_currency is None:
         base_currency = _settings.get("default_base_currency", "USD")
 
@@ -430,7 +402,7 @@ def buy_currency(
     # Валидация currency_code через get_currency()
     try:
         currency_obj = get_currency(currency)
-        currency = currency_obj.code  # Получаем нормализованный код
+        currency = currency_obj.code
     except CurrencyNotFoundError:
         raise CurrencyNotFoundError(currency)
 
@@ -444,7 +416,6 @@ def buy_currency(
     # Загружаем курсы (безопасная операция: чтение)
     rates_data = load_json(RATES_FILE)
 
-    # Получаем курс для расчёта стоимости
     try:
         rate = get_exchange_rate(currency, base_currency, rates_data)
     except ValueError as e:
@@ -452,7 +423,6 @@ def buy_currency(
             f"Не удалось получить курс для {currency}→{base_currency}"
         ) from e
 
-    # Получаем или создаём кошелёк для покупаемой валюты
     wallet = portfolio.get_wallet(currency)
     old_balance = 0.0
     if wallet is None:
@@ -468,7 +438,6 @@ def buy_currency(
     global _current_portfolio
     _current_portfolio = portfolio
 
-    # Сохраняем портфель в JSON (безопасная операция: чтение→модификация→запись)
     save_portfolio_to_json(portfolio)
 
     # Рассчитываем стоимость покупки
@@ -519,7 +488,6 @@ def sell_currency(
     require_login()
     portfolio = require_portfolio()
 
-    # Получаем базовую валюту из конфигурации, если не указана
     if base_currency is None:
         base_currency = _settings.get("default_base_currency", "USD")
 
@@ -529,7 +497,7 @@ def sell_currency(
     # Валидация currency_code через get_currency()
     try:
         currency_obj = get_currency(currency)
-        currency = currency_obj.code  # Получаем нормализованный код
+        currency = currency_obj.code
     except CurrencyNotFoundError:
         raise CurrencyNotFoundError(currency)
 
@@ -548,7 +516,6 @@ def sell_currency(
             f"Добавьте валюту: она создаётся автоматически при первой покупке."
         )
 
-    # Сохраняем старый баланс
     old_balance = wallet.balance
 
     # Уменьшаем баланс (выбросит InsufficientFundsError, если недостаточно средств)
@@ -558,7 +525,6 @@ def sell_currency(
     # Загружаем курсы для расчёта выручки (безопасная операция: чтение)
     rates_data = load_json(RATES_FILE)
 
-    # Получаем курс для расчёта выручки
     try:
         rate = get_exchange_rate(currency, base_currency, rates_data)
     except ValueError as e:
@@ -580,7 +546,6 @@ def sell_currency(
     global _current_portfolio
     _current_portfolio = portfolio
 
-    # Сохраняем портфель в JSON (безопасная операция: чтение→модификация→запись)
     save_portfolio_to_json(portfolio)
 
     return {
@@ -607,7 +572,6 @@ def _is_rate_fresh(updated_at_str: str, max_age_seconds: int | None = None) -> b
         True если курс свежий, иначе False
     """
     if max_age_seconds is None:
-        # Получаем TTL из конфигурации (Singleton)
         max_age_seconds = _settings.get("rates_ttl_seconds", 300)
 
     try:
@@ -748,7 +712,6 @@ def get_rate(from_currency: str, to_currency: str) -> dict:
     # Если курс не свежий или не найден, обновляем
     if needs_update:
         try:
-            # TODO: использовать Parser Service вместо заглушки
             rate = _get_rate_from_stub(from_currency, to_currency)
             _update_rate_in_cache(from_currency, to_currency, rate, rates_data)
             updated_at_str = datetime.now().isoformat()

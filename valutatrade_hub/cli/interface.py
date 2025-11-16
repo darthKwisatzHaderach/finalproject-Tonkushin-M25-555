@@ -16,6 +16,7 @@ from valutatrade_hub.core.usecases import (
     get_portfolio_info,
     get_rate,
     login_user,
+    logout_user,
     register_user,
     sell_currency,
 )
@@ -72,6 +73,25 @@ def cmd_login(args: argparse.Namespace) -> int:
         return 1
     except Exception as e:
         print(f"Ошибка входа: {e}", file=sys.stderr)
+        return 1
+
+
+def cmd_logout(args: argparse.Namespace) -> int:
+    """
+    Обработка команды logout.
+
+    Args:
+        args: Аргументы команды
+
+    Returns:
+        Код возврата (0 - успех, 1 - ошибка)
+    """
+    try:
+        logout_user()
+        print("Вы вышли из системы")
+        return 0
+    except Exception as e:
+        print(f"Ошибка выхода: {e}", file=sys.stderr)
         return 1
 
 
@@ -624,6 +644,9 @@ def create_parser() -> argparse.ArgumentParser:
         help="Пароль (обязательно)",
     )
 
+    # Команда logout
+    subparsers.add_parser("logout", help="Выйти из системы")
+
     # Команда show-portfolio
     show_portfolio_parser = subparsers.add_parser(
         "show-portfolio", help="Показать портфель пользователя"
@@ -723,6 +746,86 @@ def create_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _parse_command_line(command_line: str) -> argparse.Namespace | None:
+    """
+    Парсить строку команды в аргументы.
+
+    Args:
+        command_line: Строка команды от пользователя
+
+    Returns:
+        Namespace с аргументами или None, если команда пустая или невалидная
+    """
+    if not command_line.strip():
+        return None
+
+    parser = create_parser()
+    original_exit = parser.exit
+    original_error = parser.error
+    original_print_help = parser.print_help
+
+    error_message = None
+
+    def fake_exit(status=0, message=None):
+        nonlocal error_message
+        if message:
+            error_message = message
+        raise SystemExit(status)
+
+    def fake_error(message):
+        nonlocal error_message
+        error_message = message
+        raise SystemExit(2)
+
+    def fake_print_help():
+        # Не выводим help в интерактивном режиме
+        pass
+
+    parser.exit = fake_exit
+    parser.error = fake_error
+    parser.print_help = fake_print_help
+
+    try:
+        # Разбиваем строку на аргументы
+        args = parser.parse_args(command_line.split())
+        return args
+    except SystemExit:
+        # Если была ошибка парсинга, возвращаем специальный объект с сообщением
+        if error_message:
+            msg = error_message
+
+            # Создаем объект с атрибутом error_message
+            class ErrorArgs:
+                command = None
+                error_message = msg
+
+            return ErrorArgs()
+        return None
+    except (ValueError, argparse.ArgumentError):
+        # Игнорируем другие ошибки парсинга
+        return None
+    finally:
+        parser.exit = original_exit
+        parser.error = original_error
+        parser.print_help = original_print_help
+
+
+def _print_commands_help() -> None:
+    """Вывести список доступных команд."""
+    print("Доступные команды:")
+    print("  register --username USERNAME --password PASSWORD")
+    print("  login --username USERNAME --password PASSWORD")
+    print("  logout")
+    print("  show-portfolio [--base CURRENCY]")
+    print("  buy --currency CURRENCY --amount AMOUNT")
+    print("  sell --currency CURRENCY --amount AMOUNT")
+    print("  get-rate --from CURRENCY --to CURRENCY")
+    print("  update-rates [--source coingecko|exchangerate]")
+    print("  show-rates [--currency CURRENCY] [--top N] [--base CURRENCY]")
+    print("  exit")
+    print()
+
+
 def main() -> int:
     """
     Главная функция CLI.
@@ -730,33 +833,122 @@ def main() -> int:
     Returns:
         Код возврата (0 - успех, 1 - ошибка)
     """
-    parser = create_parser()
-    args = parser.parse_args()
+    # Проверяем, есть ли аргументы командной строки (кроме help)
+    if len(sys.argv) > 1 and sys.argv[1] not in ("-h", "--help"):
+        # Режим одной команды (старое поведение)
+        parser = create_parser()
+        args = parser.parse_args()
 
-    if not args.command:
-        parser.print_help()
+        if not args.command:
+            parser.print_help()
+            return 1
+
+        # Маршрутизация команд
+        if args.command == "register":
+            return cmd_register(args)
+        if args.command == "login":
+            return cmd_login(args)
+        if args.command == "logout":
+            return cmd_logout(args)
+        if args.command == "show-portfolio":
+            return cmd_show_portfolio(args)
+        if args.command == "buy":
+            return cmd_buy(args)
+        if args.command == "sell":
+            return cmd_sell(args)
+        if args.command == "get-rate":
+            return cmd_get_rate(args)
+        if args.command == "update-rates":
+            return cmd_update_rates(args)
+        if args.command == "show-rates":
+            return cmd_show_rates(args)
+
+        print(f"Неизвестная команда: {args.command}", file=sys.stderr)
         return 1
 
-    # Маршрутизация команд
-    if args.command == "register":
-        return cmd_register(args)
-    if args.command == "login":
-        return cmd_login(args)
-    if args.command == "show-portfolio":
-        return cmd_show_portfolio(args)
-    if args.command == "buy":
-        return cmd_buy(args)
-    if args.command == "sell":
-        return cmd_sell(args)
-    if args.command == "get-rate":
-        return cmd_get_rate(args)
-    if args.command == "update-rates":
-        return cmd_update_rates(args)
-    if args.command == "show-rates":
-        return cmd_show_rates(args)
+    # Интерактивный режим
+    print("Валютный кошелек - консольное приложение")
+    print("Введите 'help' для списка команд или 'exit' для выхода")
+    print()
 
-    print(f"Неизвестная команда: {args.command}", file=sys.stderr)
-    return 1
+    while True:
+        try:
+            command_line = input("> ").strip()
+
+            if not command_line:
+                continue
+
+            if command_line.lower() == "exit":
+                # Автоматический logout при выходе
+                logout_user()
+                print("До свидания!")
+                return 0
+
+            if command_line.lower() == "help":
+                _print_commands_help()
+                continue
+
+            # Парсим команду
+            args = _parse_command_line(command_line)
+            if args is None:
+                print(
+                    "Неверная команда. Введите 'help' для списка команд.",
+                    file=sys.stderr,
+                )
+                print()
+                continue
+
+            # Проверяем, есть ли сообщение об ошибке от argparse
+            if hasattr(args, "error_message") and args.error_message:
+                print(f"Ошибка: {args.error_message}", file=sys.stderr)
+                print()
+                continue
+
+            if not hasattr(args, "command") or args.command is None:
+                print(
+                    "Неверная команда. Введите 'help' для списка команд.",
+                    file=sys.stderr,
+                )
+                print()
+                continue
+
+            # Маршрутизация команд
+            if args.command == "register":
+                cmd_register(args)
+            elif args.command == "login":
+                cmd_login(args)
+            elif args.command == "logout":
+                cmd_logout(args)
+            elif args.command == "show-portfolio":
+                cmd_show_portfolio(args)
+            elif args.command == "buy":
+                cmd_buy(args)
+            elif args.command == "sell":
+                cmd_sell(args)
+            elif args.command == "get-rate":
+                cmd_get_rate(args)
+            elif args.command == "update-rates":
+                cmd_update_rates(args)
+            elif args.command == "show-rates":
+                cmd_show_rates(args)
+            else:
+                print(f"Неизвестная команда: {args.command}", file=sys.stderr)
+
+            print()  # Пустая строка для читаемости
+
+        except KeyboardInterrupt:
+            # Ctrl+C - выход с автоматическим logout
+            print("\nВыход...")
+            logout_user()
+            return 0
+        except EOFError:
+            # Ctrl+D - выход с автоматическим logout
+            print("\nВыход...")
+            logout_user()
+            return 0
+        except Exception as e:
+            print(f"Ошибка: {e}", file=sys.stderr)
+            print()
 
 
 if __name__ == "__main__":

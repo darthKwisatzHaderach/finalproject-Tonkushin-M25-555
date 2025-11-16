@@ -2,6 +2,14 @@
 
 Консольное приложение для управления валютным кошельком с поддержкой криптовалют и фиатных валют.
 
+## Демонстрация
+
+Интерактивная демонстрация работы приложения:
+
+[![asciicast](https://asciinema.org/a/w7OgWNB3UCpTyNPSmbaMGho0g.svg)](https://asciinema.org/a/w7OgWNB3UCpTyNPSmbaMGho0g)
+
+[Смотреть полную демонстрацию на asciinema.org](https://asciinema.org/a/w7OgWNB3UCpTyNPSmbaMGho0g)
+
 ## Описание
 
 ValutaTrade Hub позволяет пользователям:

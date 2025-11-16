@@ -32,7 +32,7 @@ class User:
             registration_date: Дата регистрации пользователя
         """
         self._user_id = user_id
-        self.username = username  # Используем сеттер для валидации
+        self.username = username
         self._hashed_password = hashed_password
         self._salt = salt
         self._registration_date = registration_date
@@ -47,15 +47,6 @@ class User:
 
     @username.setter
     def username(self, value: str) -> None:
-        """
-        Установить имя пользователя.
-
-        Args:
-            value: Новое имя пользователя
-
-        Raises:
-            ValueError: Если имя пустое
-        """
         if not value or not value.strip():
             raise ValueError("Имя пользователя не может быть пустым")
         self._username = value.strip()
@@ -73,12 +64,6 @@ class User:
         return self._registration_date
 
     def get_user_info(self) -> dict:
-        """
-        Получить информацию о пользователе (без пароля).
-
-        Returns:
-            Словарь с информацией о пользователе
-        """
         return {
             "user_id": self._user_id,
             "username": self._username,
@@ -312,7 +297,6 @@ class Portfolio:
         Raises:
             ValueError: Если базовая валюта не найдена в курсах
         """
-        # TODO: получать курсы из rates.json вместо хардкода
         exchange_rates: dict[str, float] = {
             "USD": 1.0,
             "EUR": 1.1,

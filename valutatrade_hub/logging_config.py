@@ -7,7 +7,6 @@ from pathlib import Path
 
 from valutatrade_hub.infra.settings import SettingsLoader
 
-# Получаем экземпляр SettingsLoader (Singleton)
 _settings = SettingsLoader()
 
 
@@ -17,7 +16,6 @@ def setup_logging() -> None:
 
     Создаёт логгер с ротацией файлов и настраивает формат.
     """
-    # Получаем настройки из конфигурации
     log_file = _settings.get("log_file", "logs/app.log")
     log_level_str = _settings.get("log_level", "INFO").upper()
 

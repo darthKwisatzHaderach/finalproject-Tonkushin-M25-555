@@ -8,7 +8,6 @@ from typing import Any
 
 from valutatrade_hub.infra.settings import SettingsLoader
 
-# Получаем экземпляр SettingsLoader (Singleton)
 _settings = SettingsLoader()
 
 
