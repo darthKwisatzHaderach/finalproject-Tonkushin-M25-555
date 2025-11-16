@@ -163,15 +163,29 @@ def cmd_buy(args: argparse.Namespace) -> int:
             f"по курсу {rate_str} {base_currency}/{currency}"
         )
         print("Изменения в портфеле:")
-        print(f"- {currency}: было {old_balance_str} → стало {new_balance_str}")
+        print(f"  {currency}: было {old_balance_str} → стало {new_balance_str}")
         print(f"Оценочная стоимость покупки: {cost_str} {base_currency}")
 
         return 0
     except RuntimeError:
-        print("Сначала выполните login", file=sys.stderr)
+        print("Ошибка: Сначала выполните login", file=sys.stderr)
+        return 1
+    except CurrencyNotFoundError as e:
+        print(f"Ошибка: {e}", file=sys.stderr)
+        print(
+            "Проверьте список поддерживаемых валют: USD, EUR, RUB, BTC, ETH",
+            file=sys.stderr,
+        )
+        return 1
+    except ApiRequestError as e:
+        print(f"Ошибка: {e}", file=sys.stderr)
+        print(
+            "Не удалось получить актуальный курс. Повторите попытку позже.",
+            file=sys.stderr,
+        )
         return 1
     except ValueError as e:
-        print(str(e), file=sys.stderr)
+        print(f"Ошибка: {e}", file=sys.stderr)
         return 1
     except Exception as e:
         print(f"Ошибка покупки: {e}", file=sys.stderr)
@@ -217,19 +231,36 @@ def cmd_sell(args: argparse.Namespace) -> int:
             f"по курсу {rate_str} {base_currency}/{currency}"
         )
         print("Изменения в портфеле:")
-        print(f"- {currency}: было {old_balance_str} → стало {new_balance_str}")
+        print(f"  {currency}: было {old_balance_str} → стало {new_balance_str}")
         print(f"Оценочная выручка: {revenue_str} {base_currency}")
 
         return 0
     except RuntimeError:
-        print("Сначала выполните login", file=sys.stderr)
+        print("Ошибка: Сначала выполните login", file=sys.stderr)
         return 1
     except InsufficientFundsError as e:
-        # Печатаем текст ошибки как есть
-        print(str(e), file=sys.stderr)
+        print(f"Ошибка: {e}", file=sys.stderr)
+        print(
+            "Проверьте баланс кошелька с помощью команды 'show-portfolio'",
+            file=sys.stderr,
+        )
+        return 1
+    except CurrencyNotFoundError as e:
+        print(f"Ошибка: {e}", file=sys.stderr)
+        print(
+            "Проверьте список поддерживаемых валют: USD, EUR, RUB, BTC, ETH",
+            file=sys.stderr,
+        )
+        return 1
+    except ApiRequestError as e:
+        print(f"Ошибка: {e}", file=sys.stderr)
+        print(
+            "Не удалось получить актуальный курс. Повторите попытку позже.",
+            file=sys.stderr,
+        )
         return 1
     except ValueError as e:
-        print(str(e), file=sys.stderr)
+        print(f"Ошибка: {e}", file=sys.stderr)
         return 1
     except Exception as e:
         print(f"Ошибка продажи: {e}", file=sys.stderr)
@@ -279,26 +310,41 @@ def cmd_get_rate(args: argparse.Namespace) -> int:
             f"Курс {from_currency}→{to_currency}: {rate_str} "
             f"(обновлено: {updated_at_formatted})"
         )
-        print(f"Обратный курс {to_currency}→{from_currency}: {reverse_rate_str}")
+        print(f"  Обратный курс {to_currency}→{from_currency}: {reverse_rate_str}")
 
         return 0
     except CurrencyNotFoundError as e:
-        print(str(e), file=sys.stderr)
+        print(f"Ошибка: {e}", file=sys.stderr)
         print(
-            "Используйте 'get-rate --help' для справки или проверьте список "
-            "поддерживаемых валют: USD, EUR, RUB, BTC, ETH",
+            "Поддерживаемые валюты: USD, EUR, RUB, BTC, ETH",
+            file=sys.stderr,
+        )
+        print(
+            "Используйте 'get-rate --help' для справки по использованию команды",
             file=sys.stderr,
         )
         return 1
     except ApiRequestError as e:
-        print(str(e), file=sys.stderr)
+        print(f"Ошибка: {e}", file=sys.stderr)
         print(
-            "Повторите попытку позже или проверьте подключение к сети.",
+            "Возможные причины:",
+            file=sys.stderr,
+        )
+        print(
+            "  - Временная недоступность сервиса получения курсов",
+            file=sys.stderr,
+        )
+        print(
+            "  - Проблемы с подключением к сети",
+            file=sys.stderr,
+        )
+        print(
+            "Рекомендация: Повторите попытку через несколько секунд",
             file=sys.stderr,
         )
         return 1
     except ValueError as e:
-        print(str(e), file=sys.stderr)
+        print(f"Ошибка: {e}", file=sys.stderr)
         return 1
     except Exception as e:
         print(f"Ошибка получения курса: {e}", file=sys.stderr)
