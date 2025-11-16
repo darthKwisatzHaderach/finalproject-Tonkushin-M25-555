@@ -6,7 +6,7 @@ import hashlib
 import secrets
 from datetime import datetime
 
-from valutatrade_hub.core.models import Portfolio, User
+from valutatrade_hub.core.models import Portfolio, User, Wallet
 from valutatrade_hub.core.utils import (
     PORTFOLIOS_FILE,
     USERS_FILE,
@@ -146,3 +146,101 @@ def register_user(username: str, password: str) -> tuple[User, int]:
     save_json(PORTFOLIOS_FILE, portfolios_data)
 
     return user, user_id
+
+
+def load_portfolio_from_json(user_id: int) -> Portfolio:
+    """
+    Загрузить портфель пользователя из JSON.
+
+    Args:
+        user_id: Идентификатор пользователя
+
+    Returns:
+        Объект Portfolio
+
+    Raises:
+        ValueError: Если портфель не найден
+    """
+    portfolios_data = load_json(PORTFOLIOS_FILE)
+    # Если portfolios.json был объектом, преобразуем в список
+    if isinstance(portfolios_data, dict):
+        portfolios_data = []
+
+    # Ищем портфель пользователя
+    portfolio_data = None
+    for p in portfolios_data:
+        if p.get("user_id") == user_id:
+            portfolio_data = p
+            break
+
+    if portfolio_data is None:
+        # Создаём пустой портфель, если не найден
+        portfolio_data = {"user_id": user_id, "wallets": {}}
+        portfolios_data.append(portfolio_data)
+        save_json(PORTFOLIOS_FILE, portfolios_data)
+
+    # Создаём словарь кошельков
+    wallets: dict[str, Wallet] = {}
+    wallets_data = portfolio_data.get("wallets", {})
+    for currency_code, wallet_data in wallets_data.items():
+        balance = wallet_data.get("balance", 0.0)
+        wallets[currency_code] = Wallet(currency_code, balance)
+
+    # Создаём объект Portfolio
+    portfolio = Portfolio(user_id=user_id, wallets=wallets)
+    return portfolio
+
+
+def login_user(username: str, password: str) -> User:
+    """
+    Войти в систему.
+
+    Args:
+        username: Имя пользователя
+        password: Пароль пользователя
+
+    Returns:
+        Объект User
+
+    Raises:
+        ValueError: Если пользователь не найден или неверный пароль
+    """
+    global _current_user, _current_portfolio
+
+    # Загружаем список пользователей
+    users_data = load_json(USERS_FILE)
+
+    # Ищем пользователя по username
+    user_data = None
+    username_lower = username.lower()
+    for u in users_data:
+        if u.get("username", "").lower() == username_lower:
+            user_data = u
+            break
+
+    if user_data is None:
+        raise ValueError(f"Пользователь '{username}' не найден")
+
+    # Создаём объект User из данных
+    registration_date_str = user_data.get("registration_date", "")
+    registration_date = datetime.fromisoformat(registration_date_str)
+    user = User(
+        user_id=user_data["user_id"],
+        username=user_data["username"],
+        hashed_password=user_data["hashed_password"],
+        salt=user_data["salt"],
+        registration_date=registration_date,
+    )
+
+    # Проверяем пароль
+    if not user.verify_password(password):
+        raise ValueError("Неверный пароль")
+
+    # Загружаем портфель
+    portfolio = load_portfolio_from_json(user.user_id)
+
+    # Устанавливаем текущего пользователя и портфель
+    _current_user = user
+    _current_portfolio = portfolio
+
+    return user
