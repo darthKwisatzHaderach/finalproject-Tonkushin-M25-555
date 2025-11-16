@@ -4,8 +4,13 @@ import json
 from pathlib import Path
 from typing import Any
 
-# Пути к файлам данных
-DATA_DIR = Path(__file__).parent.parent.parent / "data"
+from valutatrade_hub.core.settings import SettingsLoader
+
+# Получаем экземпляр SettingsLoader (Singleton)
+_settings = SettingsLoader()
+
+# Пути к файлам данных из конфигурации
+DATA_DIR = Path(_settings.get("data_dir", "data"))
 USERS_FILE = DATA_DIR / "users.json"
 PORTFOLIOS_FILE = DATA_DIR / "portfolios.json"
 RATES_FILE = DATA_DIR / "rates.json"

@@ -12,6 +12,7 @@ from valutatrade_hub.core.exceptions import (
     CurrencyNotFoundError,
 )
 from valutatrade_hub.core.models import Portfolio, User, Wallet
+from valutatrade_hub.core.settings import SettingsLoader
 from valutatrade_hub.core.utils import (
     PORTFOLIOS_FILE,
     RATES_FILE,
@@ -22,6 +23,9 @@ from valutatrade_hub.core.utils import (
     validate_amount,
     validate_currency_code,
 )
+
+# Получаем экземпляр SettingsLoader (Singleton)
+_settings = SettingsLoader()
 
 # Глобальная переменная для текущего залогиненного пользователя
 _current_user: User | None = None
@@ -255,12 +259,13 @@ def login_user(username: str, password: str) -> User:
     return user
 
 
-def get_portfolio_info(base_currency: str = "USD") -> dict:
+def get_portfolio_info(base_currency: str | None = None) -> dict:
     """
     Получить информацию о портфеле текущего пользователя.
 
     Args:
         base_currency: Базовая валюта для конвертации
+                       (если None, берётся из конфигурации)
 
     Returns:
         Словарь с информацией о портфеле:
@@ -285,6 +290,10 @@ def get_portfolio_info(base_currency: str = "USD") -> dict:
     """
     user = require_login()
     portfolio = require_portfolio()
+
+    # Получаем базовую валюту из конфигурации, если не указана
+    if base_currency is None:
+        base_currency = _settings.get("default_base_currency", "USD")
 
     # Валидируем базовую валюту
     base_currency = validate_currency_code(base_currency)
@@ -370,14 +379,17 @@ def save_portfolio_to_json(portfolio: Portfolio) -> None:
     save_json(PORTFOLIOS_FILE, portfolios_data)
 
 
-def buy_currency(currency: str, amount: float, base_currency: str = "USD") -> dict:
+def buy_currency(
+    currency: str, amount: float, base_currency: str | None = None
+) -> dict:
     """
     Купить валюту.
 
     Args:
         currency: Код покупаемой валюты
         amount: Количество покупаемой валюты
-        base_currency: Базовая валюта для расчёта стоимости (по умолчанию USD)
+        base_currency: Базовая валюта для расчёта стоимости
+                       (если None, берётся из конфигурации)
 
     Returns:
         Словарь с информацией о покупке:
@@ -396,6 +408,10 @@ def buy_currency(currency: str, amount: float, base_currency: str = "USD") -> di
     """
     require_login()
     portfolio = require_portfolio()
+
+    # Получаем базовую валюту из конфигурации, если не указана
+    if base_currency is None:
+        base_currency = _settings.get("default_base_currency", "USD")
 
     # Валидация
     currency = validate_currency_code(currency)
@@ -445,14 +461,17 @@ def buy_currency(currency: str, amount: float, base_currency: str = "USD") -> di
     }
 
 
-def sell_currency(currency: str, amount: float, base_currency: str = "USD") -> dict:
+def sell_currency(
+    currency: str, amount: float, base_currency: str | None = None
+) -> dict:
     """
     Продать валюту.
 
     Args:
         currency: Код продаваемой валюты
         amount: Количество продаваемой валюты
-        base_currency: Базовая валюта для расчёта выручки (по умолчанию USD)
+        base_currency: Базовая валюта для расчёта выручки
+                       (если None, берётся из конфигурации)
 
     Returns:
         Словарь с информацией о продаже:
@@ -471,6 +490,10 @@ def sell_currency(currency: str, amount: float, base_currency: str = "USD") -> d
     """
     require_login()
     portfolio = require_portfolio()
+
+    # Получаем базовую валюту из конфигурации, если не указана
+    if base_currency is None:
+        base_currency = _settings.get("default_base_currency", "USD")
 
     # Валидация
     currency = validate_currency_code(currency)
@@ -530,21 +553,26 @@ def sell_currency(currency: str, amount: float, base_currency: str = "USD") -> d
     }
 
 
-def _is_rate_fresh(updated_at_str: str, max_age_minutes: int = 5) -> bool:
+def _is_rate_fresh(updated_at_str: str, max_age_seconds: int | None = None) -> bool:
     """
     Проверить, свежий ли курс.
 
     Args:
         updated_at_str: Строка с датой обновления в формате ISO
-        max_age_minutes: Максимальный возраст курса в минутах
+        max_age_seconds: Максимальный возраст курса в секундах
+                         (если None, берётся из конфигурации)
 
     Returns:
         True если курс свежий, иначе False
     """
+    if max_age_seconds is None:
+        # Получаем TTL из конфигурации (Singleton)
+        max_age_seconds = _settings.get("rates_ttl_seconds", 300)
+
     try:
         updated_at = datetime.fromisoformat(updated_at_str)
         age = datetime.now() - updated_at
-        return age < timedelta(minutes=max_age_minutes)
+        return age < timedelta(seconds=max_age_seconds)
     except (ValueError, TypeError):
         return False
 

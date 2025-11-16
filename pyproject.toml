@@ -12,6 +12,7 @@ prettytable = "^3.0.0"
 
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.14.5"
+tomli = "^2.3.0"
 
 [tool.poetry.scripts]
 project = "main:main"
@@ -31,4 +32,20 @@ ignore = []
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
+
+[tool.valutatrade]
+# Путь к директории с данными (относительно корня проекта)
+data_dir = "data"
+
+# Время жизни курсов в секундах (TTL)
+rates_ttl_seconds = 300
+
+# Дефолтная базовая валюта
+default_base_currency = "USD"
+
+# Путь к файлу логов
+log_file = "logs/app.log"
+
+# Уровень логирования
+log_level = "INFO"
 
