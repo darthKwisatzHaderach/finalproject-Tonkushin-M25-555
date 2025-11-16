@@ -3,7 +3,7 @@
 import sys
 
 from valutatrade_hub.cli.interface import main as cli_main
-from valutatrade_hub.core.logging_config import setup_logging
+from valutatrade_hub.logging_config import setup_logging
 
 
 def main() -> None:

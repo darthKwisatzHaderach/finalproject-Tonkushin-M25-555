@@ -5,7 +5,7 @@ import sys
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-from valutatrade_hub.core.settings import SettingsLoader
+from valutatrade_hub.infra.settings import SettingsLoader
 
 # Получаем экземпляр SettingsLoader (Singleton)
 _settings = SettingsLoader()

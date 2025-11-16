@@ -7,7 +7,7 @@ from collections.abc import Callable
 from datetime import datetime
 from typing import Any
 
-from valutatrade_hub.core.logging_config import get_logger
+from valutatrade_hub.logging_config import get_logger
 
 # Логгер для действий
 _action_logger = get_logger("actions")

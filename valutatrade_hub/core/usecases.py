@@ -7,13 +7,11 @@ import secrets
 from datetime import datetime, timedelta
 
 from valutatrade_hub.core.currencies import get_currency
-from valutatrade_hub.core.decorators import log_action
 from valutatrade_hub.core.exceptions import (
     ApiRequestError,
     CurrencyNotFoundError,
 )
 from valutatrade_hub.core.models import Portfolio, User, Wallet
-from valutatrade_hub.core.settings import SettingsLoader
 from valutatrade_hub.core.utils import (
     PORTFOLIOS_FILE,
     RATES_FILE,
@@ -24,6 +22,8 @@ from valutatrade_hub.core.utils import (
     validate_amount,
     validate_currency_code,
 )
+from valutatrade_hub.decorators import log_action
+from valutatrade_hub.infra.settings import SettingsLoader
 
 # Получаем экземпляр SettingsLoader (Singleton)
 _settings = SettingsLoader()

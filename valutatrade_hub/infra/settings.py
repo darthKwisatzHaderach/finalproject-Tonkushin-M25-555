@@ -39,7 +39,7 @@ class SettingsLoader:
 
     def _load_config(self) -> None:
         """Загрузить конфигурацию из pyproject.toml или config.json."""
-        # Определяем корень проекта (3 уровня вверх от settings.py)
+        # Определяем корень проекта (4 уровня вверх от infra/settings.py)
         project_root = Path(__file__).parent.parent.parent
 
         # Пытаемся загрузить из pyproject.toml
