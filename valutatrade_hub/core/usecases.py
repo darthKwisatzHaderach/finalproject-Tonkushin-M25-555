@@ -9,9 +9,12 @@ from datetime import datetime
 from valutatrade_hub.core.models import Portfolio, User, Wallet
 from valutatrade_hub.core.utils import (
     PORTFOLIOS_FILE,
+    RATES_FILE,
     USERS_FILE,
+    get_exchange_rate,
     load_json,
     save_json,
+    validate_currency_code,
 )
 
 # Глобальная переменная для текущего залогиненного пользователя
@@ -244,3 +247,78 @@ def login_user(username: str, password: str) -> User:
     _current_portfolio = portfolio
 
     return user
+
+
+def get_portfolio_info(base_currency: str = "USD") -> dict:
+    """
+    Получить информацию о портфеле текущего пользователя.
+
+    Args:
+        base_currency: Базовая валюта для конвертации
+
+    Returns:
+        Словарь с информацией о портфеле:
+        {
+            "user": User,
+            "portfolio": Portfolio,
+            "base_currency": str,
+            "wallets_info": [
+                {
+                    "currency_code": str,
+                    "balance": float,
+                    "value_in_base": float
+                },
+                ...
+            ],
+            "total_value": float
+        }
+
+    Raises:
+        RuntimeError: Если пользователь не залогинен
+        ValueError: Если базовая валюта неизвестна
+    """
+    user = require_login()
+    portfolio = require_portfolio()
+
+    # Валидируем базовую валюту
+    base_currency = validate_currency_code(base_currency)
+
+    # Загружаем курсы
+    rates_data = load_json(RATES_FILE)
+
+    # Проверяем, что базовая валюта поддерживается
+    # Пытаемся получить курс USD -> base_currency для проверки
+    try:
+        get_exchange_rate("USD", base_currency, rates_data)
+    except ValueError:
+        raise ValueError(f"Неизвестная базовая валюта '{base_currency}'")
+
+    wallets_info = []
+    total_value = 0.0
+
+    for currency_code, wallet in portfolio.wallets.items():
+        balance = wallet.balance
+        if balance > 0:
+            # Конвертируем в базовую валюту
+            if currency_code == base_currency:
+                value_in_base = balance
+            else:
+                rate = get_exchange_rate(currency_code, base_currency, rates_data)
+                value_in_base = balance * rate
+
+            wallets_info.append(
+                {
+                    "currency_code": currency_code,
+                    "balance": balance,
+                    "value_in_base": value_in_base,
+                }
+            )
+            total_value += value_in_base
+
+    return {
+        "user": user,
+        "portfolio": portfolio,
+        "base_currency": base_currency,
+        "wallets_info": wallets_info,
+        "total_value": total_value,
+    }

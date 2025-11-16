@@ -3,7 +3,11 @@
 import argparse
 import sys
 
-from valutatrade_hub.core.usecases import login_user, register_user
+from valutatrade_hub.core.usecases import (
+    get_portfolio_info,
+    login_user,
+    register_user,
+)
 
 
 def cmd_register(args: argparse.Namespace) -> int:
@@ -53,6 +57,64 @@ def cmd_login(args: argparse.Namespace) -> int:
         return 1
 
 
+def cmd_show_portfolio(args: argparse.Namespace) -> int:
+    """
+    Обработка команды show-portfolio.
+
+    Args:
+        args: Аргументы команды
+
+    Returns:
+        Код возврата (0 - успех, 1 - ошибка)
+    """
+    try:
+        base_currency = args.base if hasattr(args, "base") and args.base else "USD"
+        portfolio_info = get_portfolio_info(base_currency)
+
+        user = portfolio_info["user"]
+        base = portfolio_info["base_currency"]
+        wallets_info = portfolio_info["wallets_info"]
+        total_value = portfolio_info["total_value"]
+
+        print(f"Портфель пользователя '{user.username}' (база: {base}):")
+
+        if not wallets_info:
+            print("Кошельков нет")
+            return 0
+
+        # Форматируем вывод для каждого кошелька
+        for wallet_info in wallets_info:
+            currency_code = wallet_info["currency_code"]
+            balance = wallet_info["balance"]
+            value_in_base = wallet_info["value_in_base"]
+
+            # Форматируем числа с нужным количеством знаков после запятой
+            if currency_code in ("BTC", "ETH"):
+                balance_str = f"{balance:.4f}"
+            else:
+                balance_str = f"{balance:.2f}"
+
+            value_str = f"{value_in_base:,.2f}".replace(",", " ")
+
+            print(f"- {currency_code}: {balance_str:>10}  → {value_str:>12} {base}")
+
+        # Итоговая сумма
+        total_str = f"{total_value:,.2f}".replace(",", " ")
+        print("-" * 40)
+        print(f"ИТОГО: {total_str} {base}")
+
+        return 0
+    except RuntimeError:
+        print("Сначала выполните login", file=sys.stderr)
+        return 1
+    except ValueError as e:
+        print(str(e), file=sys.stderr)
+        return 1
+    except Exception as e:
+        print(f"Ошибка отображения портфеля: {e}", file=sys.stderr)
+        return 1
+
+
 def create_parser() -> argparse.ArgumentParser:
     """
     Создать парсер аргументов командной строки.
@@ -99,6 +161,17 @@ def create_parser() -> argparse.ArgumentParser:
         help="Пароль (обязательно)",
     )
 
+    # Команда show-portfolio
+    show_portfolio_parser = subparsers.add_parser(
+        "show-portfolio", help="Показать портфель пользователя"
+    )
+    show_portfolio_parser.add_argument(
+        "--base",
+        type=str,
+        default="USD",
+        help="Базовая валюта конвертации (по умолчанию USD)",
+    )
+
     return parser
 
 
@@ -121,6 +194,8 @@ def main() -> int:
         return cmd_register(args)
     if args.command == "login":
         return cmd_login(args)
+    if args.command == "show-portfolio":
+        return cmd_show_portfolio(args)
 
     print(f"Неизвестная команда: {args.command}", file=sys.stderr)
     return 1
