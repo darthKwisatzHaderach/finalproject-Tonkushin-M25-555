@@ -41,7 +41,6 @@ class RatesUpdater:
         self.config = config
         self.storage = storage or RatesStorage(config)
 
-        # Создаём клиенты, если не переданы
         if clients is None:
             self.clients: list[BaseApiClient] = [
                 CoinGeckoClient(config),
@@ -72,7 +71,6 @@ class RatesUpdater:
         all_sources: dict[str, str] = {}
         errors: list[str] = []
 
-        # Опрашиваем каждого клиента
         for client in self.clients:
             client_name = client.__class__.__name__
             _logger.info(f"Запрос курсов от {client_name}")
@@ -83,7 +81,6 @@ class RatesUpdater:
                     f"{client_name}: получено {len(rates)} курсов"
                 )
 
-                # Определяем источник
                 if isinstance(client, CoinGeckoClient):
                     source = "CoinGecko"
                 elif isinstance(client, ExchangeRateApiClient):
@@ -91,12 +88,10 @@ class RatesUpdater:
                 else:
                     source = client_name
 
-                # Объединяем курсы
                 for pair_key, rate in rates.items():
                     all_rates[pair_key] = rate
                     all_sources[pair_key] = source
 
-                    # Сохраняем в историю
                     from_currency, to_currency = pair_key.split("_", 1)
                     self.storage.save_rate_to_history(
                         from_currency=from_currency,
@@ -113,7 +108,6 @@ class RatesUpdater:
                 error_msg = f"{client_name}: {e}"
                 _logger.error(error_msg)
                 errors.append(error_msg)
-                # Продолжаем работу с другими клиентами
                 continue
             except Exception as e:
                 error_msg = f"{client_name}: Неожиданная ошибка - {e}"
@@ -121,13 +115,11 @@ class RatesUpdater:
                 errors.append(error_msg)
                 continue
 
-        # Проверяем, получили ли мы хотя бы какие-то данные
         if not all_rates:
             error_msg = "Не удалось получить курсы ни от одного источника"
             _logger.error(error_msg)
             raise ApiRequestError(error_msg)
 
-        # Обновляем кэш
         _logger.info(f"Обновление кэша: {len(all_rates)} пар валют")
         self.storage.update_rates_cache(all_rates, all_sources)
 

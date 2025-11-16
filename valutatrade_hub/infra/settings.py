@@ -13,14 +13,7 @@ except ImportError:
 
 
 class SettingsLoader:
-    """
-    Загрузчик конфигурации (Singleton).
-
-    Реализация через __new__ выбрана для простоты и читабельности.
-    Это стандартный подход для Singleton в Python, который легко понять
-    и поддерживать. Альтернатива через метакласс была бы избыточной
-    для данной задачи.
-    """
+    """Загрузчик конфигурации (Singleton)."""
 
     _instance: SettingsLoader | None = None
     _config: dict[str, Any] = {}
@@ -39,43 +32,34 @@ class SettingsLoader:
 
     def _load_config(self) -> None:
         """Загрузить конфигурацию из pyproject.toml или config.json."""
-        # Определяем корень проекта (4 уровня вверх от infra/settings.py)
         project_root = Path(__file__).parent.parent.parent
 
-        # Пытаемся загрузить из pyproject.toml
         pyproject_path = project_root / "pyproject.toml"
         if pyproject_path.exists():
             try:
                 with open(pyproject_path, "rb") as f:
                     pyproject_data = tomllib.load(f)
-                    # Извлекаем секцию [tool.valutatrade]
                     self._config = pyproject_data.get("tool", {}).get(
                         "valutatrade", {}
                     )
             except Exception:
-                # Если не удалось загрузить, используем значения по умолчанию
                 pass
 
-        # Пытаемся загрузить из config.json (если есть)
         config_json_path = project_root / "config.json"
         if config_json_path.exists():
             try:
                 with open(config_json_path, encoding="utf-8") as f:
                     json_config = json.load(f)
-                    # Объединяем с конфигурацией из pyproject.toml
-                    # (config.json имеет приоритет)
                     self._config.update(json_config)
             except Exception:
                 pass
 
-        # Устанавливаем значения по умолчанию, если не заданы
         self._config.setdefault("data_dir", "data")
         self._config.setdefault("rates_ttl_seconds", 300)
         self._config.setdefault("default_base_currency", "USD")
         self._config.setdefault("log_file", "logs/app.log")
         self._config.setdefault("log_level", "INFO")
 
-        # Преобразуем относительные пути в абсолютные
         if "data_dir" in self._config:
             data_dir = self._config["data_dir"]
             if not Path(data_dir).is_absolute():

@@ -748,8 +748,7 @@ def get_rate(from_currency: str, to_currency: str) -> dict:
     # Если курс не свежий или не найден, обновляем
     if needs_update:
         try:
-            # Пытаемся получить курс из заглушки
-            # (в реальности здесь был бы запрос к Parser Service)
+            # TODO: использовать Parser Service вместо заглушки
             rate = _get_rate_from_stub(from_currency, to_currency)
             _update_rate_in_cache(from_currency, to_currency, rate, rates_data)
             updated_at_str = datetime.now().isoformat()

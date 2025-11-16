@@ -39,12 +39,10 @@ class User:
 
     @property
     def user_id(self) -> int:
-        """Получить идентификатор пользователя."""
         return self._user_id
 
     @property
     def username(self) -> str:
-        """Получить имя пользователя."""
         return self._username
 
     @username.setter
@@ -64,17 +62,14 @@ class User:
 
     @property
     def hashed_password(self) -> str:
-        """Получить хешированный пароль."""
         return self._hashed_password
 
     @property
     def salt(self) -> str:
-        """Получить соль."""
         return self._salt
 
     @property
     def registration_date(self) -> datetime:
-        """Получить дату регистрации."""
         return self._registration_date
 
     def get_user_info(self) -> dict:
@@ -103,9 +98,7 @@ class User:
         if len(new_password) < 4:
             raise ValueError("Пароль должен быть не короче 4 символов")
 
-        # Генерируем новую соль для нового пароля
         self._salt = secrets.token_hex(8)
-        # Хешируем пароль с солью
         password_with_salt = new_password + self._salt
         self._hashed_password = hashlib.sha256(
             password_with_salt.encode("utf-8")
@@ -260,27 +253,14 @@ class Portfolio:
 
     @property
     def user_id(self) -> int:
-        """Получить идентификатор пользователя."""
         return self._user_id
 
     @property
     def user(self) -> User | None:
-        """
-        Получить объект пользователя.
-
-        Returns:
-            Объект User или None, если не установлен
-        """
         return self._user
 
     @property
     def wallets(self) -> dict[str, Wallet]:
-        """
-        Получить копию словаря кошельков.
-
-        Returns:
-            Копия словаря кошельков
-        """
         return self._wallets.copy()
 
     def add_currency(self, currency_code: str) -> Wallet:
@@ -332,8 +312,7 @@ class Portfolio:
         Raises:
             ValueError: Если базовая валюта не найдена в курсах
         """
-        # Фиксированные курсы обмена (для упрощения)
-        # Курсы указаны относительно USD (1 USD = 1 USD, 1 EUR = 1.1 USD, и т.д.)
+        # TODO: получать курсы из rates.json вместо хардкода
         exchange_rates: dict[str, float] = {
             "USD": 1.0,
             "EUR": 1.1,
@@ -354,25 +333,17 @@ class Portfolio:
             currency_code = currency_code.upper()
             balance = wallet.balance
 
-            # Если валюта кошелька совпадает с базовой, просто добавляем баланс
             if currency_code == base_currency:
                 total_value += balance
             else:
-                # Конвертируем в USD сначала
                 if currency_code in exchange_rates:
-                    # Баланс в валюте кошелька * курс к USD
                     value_in_usd = balance * exchange_rates[currency_code]
-                    # Конвертируем из USD в базовую валюту
                     if base_currency == "USD":
                         total_value += value_in_usd
                     else:
-                        # Конвертируем из USD в базовую валюту
-                        total_value += value_in_usd / exchange_rates[
-                            base_currency
-                        ]
+                        total_value += value_in_usd / exchange_rates[base_currency]
                 else:
-                    # Если курс не найден, пропускаем эту валюту
-                    # (или можно выбросить исключение)
+                    # Пропускаем валюту без курса
                     continue
 
         return total_value
@@ -397,7 +368,6 @@ class Currency(ABC):
 
     @property
     def name(self) -> str:
-        """Получить имя валюты."""
         return self._name
 
     @name.setter
@@ -417,7 +387,6 @@ class Currency(ABC):
 
     @property
     def code(self) -> str:
-        """Получить код валюты."""
         return self._code
 
     @code.setter
