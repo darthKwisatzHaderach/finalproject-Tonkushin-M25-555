@@ -4,6 +4,11 @@ import argparse
 import sys
 from datetime import datetime
 
+from valutatrade_hub.core.exceptions import (
+    ApiRequestError,
+    CurrencyNotFoundError,
+    InsufficientFundsError,
+)
 from valutatrade_hub.core.usecases import (
     buy_currency,
     get_portfolio_info,
@@ -219,6 +224,10 @@ def cmd_sell(args: argparse.Namespace) -> int:
     except RuntimeError:
         print("Сначала выполните login", file=sys.stderr)
         return 1
+    except InsufficientFundsError as e:
+        # Печатаем текст ошибки как есть
+        print(str(e), file=sys.stderr)
+        return 1
     except ValueError as e:
         print(str(e), file=sys.stderr)
         return 1
@@ -273,6 +282,21 @@ def cmd_get_rate(args: argparse.Namespace) -> int:
         print(f"Обратный курс {to_currency}→{from_currency}: {reverse_rate_str}")
 
         return 0
+    except CurrencyNotFoundError as e:
+        print(str(e), file=sys.stderr)
+        print(
+            "Используйте 'get-rate --help' для справки или проверьте список "
+            "поддерживаемых валют: USD, EUR, RUB, BTC, ETH",
+            file=sys.stderr,
+        )
+        return 1
+    except ApiRequestError as e:
+        print(str(e), file=sys.stderr)
+        print(
+            "Повторите попытку позже или проверьте подключение к сети.",
+            file=sys.stderr,
+        )
+        return 1
     except ValueError as e:
         print(str(e), file=sys.stderr)
         return 1

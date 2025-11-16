@@ -6,6 +6,11 @@ import hashlib
 import secrets
 from datetime import datetime, timedelta
 
+from valutatrade_hub.core.currencies import get_currency
+from valutatrade_hub.core.exceptions import (
+    ApiRequestError,
+    CurrencyNotFoundError,
+)
 from valutatrade_hub.core.models import Portfolio, User, Wallet
 from valutatrade_hub.core.utils import (
     PORTFOLIOS_FILE,
@@ -479,23 +484,10 @@ def sell_currency(currency: str, amount: float, base_currency: str = "USD") -> d
             f"Добавьте валюту: она создаётся автоматически при первой покупке."
         )
 
-    # Проверяем, что достаточно средств
-    if wallet.balance < amount:
-        if currency in ("BTC", "ETH"):
-            balance_str = f"{wallet.balance:.4f}"
-            amount_str = f"{amount:.4f}"
-        else:
-            balance_str = f"{wallet.balance:.2f}"
-            amount_str = f"{amount:.2f}"
-        raise ValueError(
-            f"Недостаточно средств: доступно {balance_str} {currency}, "
-            f"требуется {amount_str} {currency}"
-        )
-
     # Сохраняем старый баланс
     old_balance = wallet.balance
 
-    # Уменьшаем баланс
+    # Уменьшаем баланс (выбросит InsufficientFundsError, если недостаточно средств)
     wallet.withdraw(amount)
     new_balance = wallet.balance
 
@@ -634,11 +626,24 @@ def get_rate(from_currency: str, to_currency: str) -> dict:
         }
 
     Raises:
-        ValueError: Если валидация не прошла или курс недоступен
+        CurrencyNotFoundError: Если валюта не найдена
+        ApiRequestError: Если произошла ошибка при обращении к API
+        ValueError: Если валидация не прошла
     """
-    # Валидация
+    # Валидация кодов валют
     from_currency = validate_currency_code(from_currency)
     to_currency = validate_currency_code(to_currency)
+
+    # Проверяем, что валюты существуют в регистре
+    try:
+        get_currency(from_currency)
+    except CurrencyNotFoundError:
+        raise CurrencyNotFoundError(from_currency)
+
+    try:
+        get_currency(to_currency)
+    except CurrencyNotFoundError:
+        raise CurrencyNotFoundError(to_currency)
 
     # Если валюты одинаковые
     if from_currency == to_currency:
@@ -675,7 +680,7 @@ def get_rate(from_currency: str, to_currency: str) -> dict:
             rate = _get_rate_from_stub(from_currency, to_currency)
             _update_rate_in_cache(from_currency, to_currency, rate, rates_data)
             updated_at_str = datetime.now().isoformat()
-        except ValueError:
+        except ValueError as e:
             # Если не удалось получить курс, пробуем обратный
             reverse_key = f"{to_currency}_{from_currency}"
             if reverse_key in rates_data and "rate" in rates_data[reverse_key]:
@@ -688,15 +693,15 @@ def get_rate(from_currency: str, to_currency: str) -> dict:
                     _update_rate_in_cache(from_currency, to_currency, rate, rates_data)
                     updated_at_str = datetime.now().isoformat()
                 else:
-                    raise ValueError(
-                        f"Курс {from_currency}→{to_currency} недоступен. "
-                        f"Повторите попытку позже."
-                    )
+                    # Симулируем ошибку API (в реальности здесь был бы запрос)
+                    raise ApiRequestError(
+                        f"Не удалось получить курс {from_currency}→{to_currency}"
+                    ) from e
             else:
-                raise ValueError(
-                    f"Курс {from_currency}→{to_currency} недоступен. "
-                    f"Повторите попытку позже."
-                )
+                # Симулируем ошибку API (в реальности здесь был бы запрос)
+                raise ApiRequestError(
+                    f"Не удалось получить курс {from_currency}→{to_currency}"
+                ) from e
 
     # Рассчитываем обратный курс
     reverse_rate = 1.0 / rate if rate != 0 else 0.0

@@ -7,6 +7,8 @@ import secrets
 from abc import ABC, abstractmethod
 from datetime import datetime
 
+from valutatrade_hub.core.exceptions import InsufficientFundsError
+
 
 class User:
     """Класс пользователя системы."""
@@ -206,7 +208,8 @@ class Wallet:
 
         Raises:
             TypeError: Если сумма не является числом
-            ValueError: Если сумма не положительная или превышает баланс
+            ValueError: Если сумма не положительная
+            InsufficientFundsError: Если недостаточно средств
         """
         if not isinstance(amount, (int, float)):
             raise TypeError("Сумма должна быть числом (int или float)")
@@ -215,7 +218,9 @@ class Wallet:
             raise ValueError("Сумма должна быть положительным числом")
 
         if amount > self._balance:
-            raise ValueError("Сумма снятия не должна превышать баланс")
+            raise InsufficientFundsError(
+                self._balance, amount, self._currency_code
+            )
 
         self._balance -= float(amount)
 
@@ -371,12 +376,6 @@ class Portfolio:
                     continue
 
         return total_value
-
-
-class CurrencyNotFoundError(ValueError):
-    """Исключение для случая, когда валюта не найдена."""
-
-    pass
 
 
 class Currency(ABC):

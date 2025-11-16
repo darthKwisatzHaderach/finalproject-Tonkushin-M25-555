@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+from valutatrade_hub.core.exceptions import CurrencyNotFoundError
 from valutatrade_hub.core.models import (
     CryptoCurrency,
     Currency,
-    CurrencyNotFoundError,
     FiatCurrency,
 )
 
