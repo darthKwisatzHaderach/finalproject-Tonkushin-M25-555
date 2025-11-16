@@ -438,3 +438,101 @@ def buy_currency(currency: str, amount: float, base_currency: str = "USD") -> di
         "cost_in_base": cost_in_base,
         "base_currency": base_currency,
     }
+
+
+def sell_currency(currency: str, amount: float, base_currency: str = "USD") -> dict:
+    """
+    Продать валюту.
+
+    Args:
+        currency: Код продаваемой валюты
+        amount: Количество продаваемой валюты
+        base_currency: Базовая валюта для расчёта выручки (по умолчанию USD)
+
+    Returns:
+        Словарь с информацией о продаже:
+        {
+            "currency": str,
+            "amount": float,
+            "old_balance": float,
+            "new_balance": float,
+            "rate": float,
+            "revenue_in_base": float
+        }
+
+    Raises:
+        RuntimeError: Если пользователь не залогинен
+        ValueError: Если валидация не прошла, кошелёк не найден или недостаточно средств
+    """
+    require_login()
+    portfolio = require_portfolio()
+
+    # Валидация
+    currency = validate_currency_code(currency)
+    amount = validate_amount(amount)
+
+    # Проверяем, что кошелёк существует
+    wallet = portfolio.get_wallet(currency)
+    if wallet is None:
+        raise ValueError(
+            f"У вас нет кошелька '{currency}'. "
+            f"Добавьте валюту: она создаётся автоматически при первой покупке."
+        )
+
+    # Проверяем, что достаточно средств
+    if wallet.balance < amount:
+        if currency in ("BTC", "ETH"):
+            balance_str = f"{wallet.balance:.4f}"
+            amount_str = f"{amount:.4f}"
+        else:
+            balance_str = f"{wallet.balance:.2f}"
+            amount_str = f"{amount:.2f}"
+        raise ValueError(
+            f"Недостаточно средств: доступно {balance_str} {currency}, "
+            f"требуется {amount_str} {currency}"
+        )
+
+    # Сохраняем старый баланс
+    old_balance = wallet.balance
+
+    # Уменьшаем баланс
+    wallet.withdraw(amount)
+    new_balance = wallet.balance
+
+    # Загружаем курсы для расчёта выручки
+    rates_data = load_json(RATES_FILE)
+
+    # Получаем курс для расчёта выручки
+    try:
+        rate = get_exchange_rate(currency, base_currency, rates_data)
+    except ValueError as e:
+        raise ValueError(
+            f"Не удалось получить курс для {currency}→{base_currency}"
+        ) from e
+
+    # Опционально: начисляем эквивалент в USD
+    # Если есть USD кошелёк, начисляем туда выручку
+    usd_wallet = portfolio.get_wallet(base_currency)
+    if usd_wallet is not None:
+        revenue_in_base = amount * rate
+        usd_wallet.deposit(revenue_in_base)
+    else:
+        # Если USD кошелька нет, просто рассчитываем выручку для отчёта
+        revenue_in_base = amount * rate
+
+    # Обновляем глобальный портфель
+    global _current_portfolio
+    _current_portfolio = portfolio
+
+    # Сохраняем портфель в JSON
+    save_portfolio_to_json(portfolio)
+
+    return {
+        "currency": currency,
+        "amount": amount,
+        "old_balance": old_balance,
+        "new_balance": new_balance,
+        "rate": rate,
+        "revenue_in_base": revenue_in_base,
+        "base_currency": base_currency,
+    }

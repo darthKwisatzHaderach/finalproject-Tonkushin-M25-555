@@ -8,6 +8,7 @@ from valutatrade_hub.core.usecases import (
     get_portfolio_info,
     login_user,
     register_user,
+    sell_currency,
 )
 
 
@@ -170,6 +171,60 @@ def cmd_buy(args: argparse.Namespace) -> int:
         return 1
 
 
+def cmd_sell(args: argparse.Namespace) -> int:
+    """
+    Обработка команды sell.
+
+    Args:
+        args: Аргументы команды
+
+    Returns:
+        Код возврата (0 - успех, 1 - ошибка)
+    """
+    try:
+        sale_info = sell_currency(args.currency, args.amount)
+
+        currency = sale_info["currency"]
+        amount = sale_info["amount"]
+        old_balance = sale_info["old_balance"]
+        new_balance = sale_info["new_balance"]
+        rate = sale_info["rate"]
+        revenue_in_base = sale_info["revenue_in_base"]
+        base_currency = sale_info["base_currency"]
+
+        # Форматируем вывод
+        if currency in ("BTC", "ETH"):
+            amount_str = f"{amount:.4f}"
+            old_balance_str = f"{old_balance:.4f}"
+            new_balance_str = f"{new_balance:.4f}"
+        else:
+            amount_str = f"{amount:.2f}"
+            old_balance_str = f"{old_balance:.2f}"
+            new_balance_str = f"{new_balance:.2f}"
+
+        rate_str = f"{rate:,.2f}".replace(",", " ")
+        revenue_str = f"{revenue_in_base:,.2f}".replace(",", " ")
+
+        print(
+            f"Продажа выполнена: {amount_str} {currency} "
+            f"по курсу {rate_str} {base_currency}/{currency}"
+        )
+        print("Изменения в портфеле:")
+        print(f"- {currency}: было {old_balance_str} → стало {new_balance_str}")
+        print(f"Оценочная выручка: {revenue_str} {base_currency}")
+
+        return 0
+    except RuntimeError:
+        print("Сначала выполните login", file=sys.stderr)
+        return 1
+    except ValueError as e:
+        print(str(e), file=sys.stderr)
+        return 1
+    except Exception as e:
+        print(f"Ошибка продажи: {e}", file=sys.stderr)
+        return 1
+
+
 def create_parser() -> argparse.ArgumentParser:
     """
     Создать парсер аргументов командной строки.
@@ -244,6 +299,23 @@ def create_parser() -> argparse.ArgumentParser:
         help="Количество покупаемой валюты (в штуках)",
     )
 
+    # Команда sell
+    sell_parser = subparsers.add_parser(
+        "sell", help="Продать валюту"
+    )
+    sell_parser.add_argument(
+        "--currency",
+        type=str,
+        required=True,
+        help="Код продаваемой валюты",
+    )
+    sell_parser.add_argument(
+        "--amount",
+        type=float,
+        required=True,
+        help="Количество продаваемой валюты",
+    )
+
     return parser
 
 
@@ -270,6 +342,8 @@ def main() -> int:
         return cmd_show_portfolio(args)
     if args.command == "buy":
         return cmd_buy(args)
+    if args.command == "sell":
+        return cmd_sell(args)
 
     print(f"Неизвестная команда: {args.command}", file=sys.stderr)
     return 1
