@@ -346,9 +346,13 @@ def save_portfolio_to_json(portfolio: Portfolio) -> None:
     """
     Сохранить портфель в JSON.
 
+    Безопасная операция: чтение→модификация→запись.
+    Все изменения выполняются в памяти перед записью.
+
     Args:
         portfolio: Объект Portfolio для сохранения
     """
+    # Безопасная операция: чтение
     portfolios_data = load_json(PORTFOLIOS_FILE)
     # Если portfolios.json был объектом, преобразуем в список
     if isinstance(portfolios_data, dict):
@@ -379,6 +383,7 @@ def save_portfolio_to_json(portfolio: Portfolio) -> None:
             }
         )
 
+    # Безопасная операция: запись (модификация уже выполнена в памяти)
     save_json(PORTFOLIOS_FILE, portfolios_data)
 
 
@@ -408,7 +413,9 @@ def buy_currency(
 
     Raises:
         RuntimeError: Если пользователь не залогинен
+        CurrencyNotFoundError: Если валюта не найдена
         ValueError: Если валидация не прошла или не удалось получить курс
+        ApiRequestError: Если произошла ошибка при обращении к API
     """
     require_login()
     portfolio = require_portfolio()
@@ -417,11 +424,24 @@ def buy_currency(
     if base_currency is None:
         base_currency = _settings.get("default_base_currency", "USD")
 
-    # Валидация
-    currency = validate_currency_code(currency)
+    # Валидация amount > 0
     amount = validate_amount(amount)
 
-    # Загружаем курсы
+    # Валидация currency_code через get_currency()
+    try:
+        currency_obj = get_currency(currency)
+        currency = currency_obj.code  # Получаем нормализованный код
+    except CurrencyNotFoundError:
+        raise CurrencyNotFoundError(currency)
+
+    # Валидация base_currency через get_currency()
+    try:
+        base_currency_obj = get_currency(base_currency)
+        base_currency = base_currency_obj.code
+    except CurrencyNotFoundError:
+        raise CurrencyNotFoundError(base_currency)
+
+    # Загружаем курсы (безопасная операция: чтение)
     rates_data = load_json(RATES_FILE)
 
     # Получаем курс для расчёта стоимости
@@ -448,7 +468,7 @@ def buy_currency(
     global _current_portfolio
     _current_portfolio = portfolio
 
-    # Сохраняем портфель в JSON
+    # Сохраняем портфель в JSON (безопасная операция: чтение→модификация→запись)
     save_portfolio_to_json(portfolio)
 
     # Рассчитываем стоимость покупки
@@ -491,7 +511,10 @@ def sell_currency(
 
     Raises:
         RuntimeError: Если пользователь не залогинен
-        ValueError: Если валидация не прошла, кошелёк не найден или недостаточно средств
+        CurrencyNotFoundError: Если валюта не найдена
+        InsufficientFundsError: Если недостаточно средств
+        ValueError: Если валидация не прошла или кошелёк не найден
+        ApiRequestError: Если произошла ошибка при обращении к API
     """
     require_login()
     portfolio = require_portfolio()
@@ -500,9 +523,22 @@ def sell_currency(
     if base_currency is None:
         base_currency = _settings.get("default_base_currency", "USD")
 
-    # Валидация
-    currency = validate_currency_code(currency)
+    # Валидация amount > 0
     amount = validate_amount(amount)
+
+    # Валидация currency_code через get_currency()
+    try:
+        currency_obj = get_currency(currency)
+        currency = currency_obj.code  # Получаем нормализованный код
+    except CurrencyNotFoundError:
+        raise CurrencyNotFoundError(currency)
+
+    # Валидация base_currency через get_currency()
+    try:
+        base_currency_obj = get_currency(base_currency)
+        base_currency = base_currency_obj.code
+    except CurrencyNotFoundError:
+        raise CurrencyNotFoundError(base_currency)
 
     # Проверяем, что кошелёк существует
     wallet = portfolio.get_wallet(currency)
@@ -519,7 +555,7 @@ def sell_currency(
     wallet.withdraw(amount)
     new_balance = wallet.balance
 
-    # Загружаем курсы для расчёта выручки
+    # Загружаем курсы для расчёта выручки (безопасная операция: чтение)
     rates_data = load_json(RATES_FILE)
 
     # Получаем курс для расчёта выручки
@@ -530,21 +566,21 @@ def sell_currency(
             f"Не удалось получить курс для {currency}→{base_currency}"
         ) from e
 
-    # Опционально: начисляем эквивалент в USD
-    # Если есть USD кошелёк, начисляем туда выручку
-    usd_wallet = portfolio.get_wallet(base_currency)
-    if usd_wallet is not None:
+    # Опционально: начисляем эквивалент в базовой валюте
+    # Если есть кошелёк базовой валюты, начисляем туда выручку
+    base_wallet = portfolio.get_wallet(base_currency)
+    if base_wallet is not None:
         revenue_in_base = amount * rate
-        usd_wallet.deposit(revenue_in_base)
+        base_wallet.deposit(revenue_in_base)
     else:
-        # Если USD кошелька нет, просто рассчитываем выручку для отчёта
+        # Если кошелька базовой валюты нет, просто рассчитываем выручку для отчёта
         revenue_in_base = amount * rate
 
     # Обновляем глобальный портфель
     global _current_portfolio
     _current_portfolio = portfolio
 
-    # Сохраняем портфель в JSON
+    # Сохраняем портфель в JSON (безопасная операция: чтение→модификация→запись)
     save_portfolio_to_json(portfolio)
 
     return {
@@ -588,19 +624,24 @@ def _update_rate_in_cache(
     """
     Обновить курс в кеше.
 
+    Безопасная операция: модификация→запись.
+    Данные уже загружены в памяти (rates_data).
+
     Args:
         from_currency: Исходная валюта
         to_currency: Целевая валюта
         rate: Курс обмена
-        rates_data: Данные курсов для обновления
+        rates_data: Данные курсов для обновления (уже загружены)
     """
     rate_key = f"{from_currency}_{to_currency}"
     now = datetime.now()
+    # Модификация в памяти
     rates_data[rate_key] = {
         "rate": rate,
         "updated_at": now.isoformat(),
     }
     rates_data["last_refresh"] = now.isoformat()
+    # Безопасная операция: запись
     save_json(RATES_FILE, rates_data)
 
 
@@ -663,18 +704,17 @@ def get_rate(from_currency: str, to_currency: str) -> dict:
         ApiRequestError: Если произошла ошибка при обращении к API
         ValueError: Если валидация не прошла
     """
-    # Валидация кодов валют
-    from_currency = validate_currency_code(from_currency)
-    to_currency = validate_currency_code(to_currency)
-
-    # Проверяем, что валюты существуют в регистре
+    # Валидация кодов валют через get_currency()
+    # Это также проверяет, что валюты существуют в регистре
     try:
-        get_currency(from_currency)
+        from_currency_obj = get_currency(from_currency)
+        from_currency = from_currency_obj.code  # Получаем нормализованный код
     except CurrencyNotFoundError:
         raise CurrencyNotFoundError(from_currency)
 
     try:
-        get_currency(to_currency)
+        to_currency_obj = get_currency(to_currency)
+        to_currency = to_currency_obj.code  # Получаем нормализованный код
     except CurrencyNotFoundError:
         raise CurrencyNotFoundError(to_currency)
 

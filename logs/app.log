@@ -10,3 +10,10 @@ INFO 2025-11-16T12:17:12 SELL user='alice' currency='BTC' amount=1.0000 result=E
 INFO 2025-11-16T12:17:12 BUY user='alice' currency='USD' amount=100.00 rate=1.00 balance=1396.17→1496.17 USD result=OK
 INFO 2025-11-16T12:17:18 LOGIN user='alice' result=OK
 INFO 2025-11-16T12:17:18 BUY user='alice' currency='BTC' amount=0.0100 rate=45000.00 base='USD' balance=0.1300→0.1400 BTC result=OK
+INFO 2025-11-16T12:19:07 LOGIN user='alice' result=OK
+INFO 2025-11-16T12:19:07 BUY user='alice' currency='XYZ' amount=10.00 result=ERROR error_type='CurrencyNotFoundError' error_message='Неизвестная валюта 'XYZ''
+INFO 2025-11-16T12:19:07 BUY user='alice' currency='EUR' amount=10.00 rate=1.10 balance=165.00→175.00 EUR result=OK
+INFO 2025-11-16T12:19:07 SELL user='alice' currency='BTC' amount=1.0000 result=ERROR error_type='InsufficientFundsError' error_message='Недостаточно средств: доступно 0.1400 BTC, требуется 1.0000 BTC'
+INFO 2025-11-16T12:19:32 LOGIN user='alice' result=OK
+INFO 2025-11-16T12:19:32 BUY user='alice' currency='BTC' amount=0.0100 rate=45000.00 balance=0.1400→0.1500 BTC result=OK
+INFO 2025-11-16T12:19:32 SELL user='alice' currency='BTC' amount=0.0050 rate=45000.00 balance=0.1500→0.1450 BTC result=OK
