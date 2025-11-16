@@ -14,6 +14,7 @@ from valutatrade_hub.core.utils import (
     get_exchange_rate,
     load_json,
     save_json,
+    validate_amount,
     validate_currency_code,
 )
 
@@ -321,4 +322,119 @@ def get_portfolio_info(base_currency: str = "USD") -> dict:
         "base_currency": base_currency,
         "wallets_info": wallets_info,
         "total_value": total_value,
+    }
+
+
+def save_portfolio_to_json(portfolio: Portfolio) -> None:
+    """
+    Сохранить портфель в JSON.
+
+    Args:
+        portfolio: Объект Portfolio для сохранения
+    """
+    portfolios_data = load_json(PORTFOLIOS_FILE)
+    # Если portfolios.json был объектом, преобразуем в список
+    if isinstance(portfolios_data, dict):
+        portfolios_data = []
+
+    # Ищем портфель пользователя
+    portfolio_data = None
+    portfolio_index = None
+    for i, p in enumerate(portfolios_data):
+        if p.get("user_id") == portfolio.user_id:
+            portfolio_data = p
+            portfolio_index = i
+            break
+
+    # Создаём словарь кошельков из объектов Wallet
+    wallets_data: dict[str, dict[str, float]] = {}
+    for currency_code, wallet in portfolio.wallets.items():
+        wallets_data[currency_code] = {"balance": wallet.balance}
+
+    # Обновляем или создаём запись портфеля
+    if portfolio_data is not None:
+        portfolios_data[portfolio_index]["wallets"] = wallets_data
+    else:
+        portfolios_data.append(
+            {
+                "user_id": portfolio.user_id,
+                "wallets": wallets_data,
+            }
+        )
+
+    save_json(PORTFOLIOS_FILE, portfolios_data)
+
+
+def buy_currency(currency: str, amount: float, base_currency: str = "USD") -> dict:
+    """
+    Купить валюту.
+
+    Args:
+        currency: Код покупаемой валюты
+        amount: Количество покупаемой валюты
+        base_currency: Базовая валюта для расчёта стоимости (по умолчанию USD)
+
+    Returns:
+        Словарь с информацией о покупке:
+        {
+            "currency": str,
+            "amount": float,
+            "old_balance": float,
+            "new_balance": float,
+            "rate": float,
+            "cost_in_base": float
+        }
+
+    Raises:
+        RuntimeError: Если пользователь не залогинен
+        ValueError: Если валидация не прошла или не удалось получить курс
+    """
+    require_login()
+    portfolio = require_portfolio()
+
+    # Валидация
+    currency = validate_currency_code(currency)
+    amount = validate_amount(amount)
+
+    # Загружаем курсы
+    rates_data = load_json(RATES_FILE)
+
+    # Получаем курс для расчёта стоимости
+    try:
+        rate = get_exchange_rate(currency, base_currency, rates_data)
+    except ValueError as e:
+        raise ValueError(
+            f"Не удалось получить курс для {currency}→{base_currency}"
+        ) from e
+
+    # Получаем или создаём кошелёк для покупаемой валюты
+    wallet = portfolio.get_wallet(currency)
+    old_balance = 0.0
+    if wallet is None:
+        wallet = portfolio.add_currency(currency)
+    else:
+        old_balance = wallet.balance
+
+    # Увеличиваем баланс
+    wallet.deposit(amount)
+    new_balance = wallet.balance
+
+    # Обновляем глобальный портфель
+    global _current_portfolio
+    _current_portfolio = portfolio
+
+    # Сохраняем портфель в JSON
+    save_portfolio_to_json(portfolio)
+
+    # Рассчитываем стоимость покупки
+    cost_in_base = amount * rate
+
+    return {
+        "currency": currency,
+        "amount": amount,
+        "old_balance": old_balance,
+        "new_balance": new_balance,
+        "rate": rate,
+        "cost_in_base": cost_in_base,
+        "base_currency": base_currency,
     }
