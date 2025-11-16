@@ -2,10 +2,12 @@
 
 import argparse
 import sys
+from datetime import datetime
 
 from valutatrade_hub.core.usecases import (
     buy_currency,
     get_portfolio_info,
+    get_rate,
     login_user,
     register_user,
     sell_currency,
@@ -225,6 +227,60 @@ def cmd_sell(args: argparse.Namespace) -> int:
         return 1
 
 
+def cmd_get_rate(args: argparse.Namespace) -> int:
+    """
+    Обработка команды get-rate.
+
+    Args:
+        args: Аргументы команды
+
+    Returns:
+        Код возврата (0 - успех, 1 - ошибка)
+    """
+    try:
+        rate_info = get_rate(args.from_currency, args.to_currency)
+
+        from_currency = rate_info["from_currency"]
+        to_currency = rate_info["to_currency"]
+        rate = rate_info["rate"]
+        updated_at_str = rate_info["updated_at"]
+        reverse_rate = rate_info["reverse_rate"]
+
+        # Форматируем дату обновления
+        try:
+            updated_at = datetime.fromisoformat(updated_at_str)
+            updated_at_formatted = updated_at.strftime("%Y-%m-%d %H:%M:%S")
+        except (ValueError, TypeError):
+            updated_at_formatted = updated_at_str
+
+        # Форматируем курс в зависимости от валют
+        if to_currency in ("BTC", "ETH"):
+            rate_str = f"{rate:.8f}"
+        else:
+            rate_str = f"{rate:.5f}"
+
+        # Форматируем обратный курс
+        # Если обратный курс очень маленький (< 0.01), используем больше знаков
+        if reverse_rate < 0.01:
+            reverse_rate_str = f"{reverse_rate:.8f}"
+        else:
+            reverse_rate_str = f"{reverse_rate:,.2f}".replace(",", " ")
+
+        print(
+            f"Курс {from_currency}→{to_currency}: {rate_str} "
+            f"(обновлено: {updated_at_formatted})"
+        )
+        print(f"Обратный курс {to_currency}→{from_currency}: {reverse_rate_str}")
+
+        return 0
+    except ValueError as e:
+        print(str(e), file=sys.stderr)
+        return 1
+    except Exception as e:
+        print(f"Ошибка получения курса: {e}", file=sys.stderr)
+        return 1
+
+
 def create_parser() -> argparse.ArgumentParser:
     """
     Создать парсер аргументов командной строки.
@@ -316,6 +372,25 @@ def create_parser() -> argparse.ArgumentParser:
         help="Количество продаваемой валюты",
     )
 
+    # Команда get-rate
+    get_rate_parser = subparsers.add_parser(
+        "get-rate", help="Получить курс обмена валют"
+    )
+    get_rate_parser.add_argument(
+        "--from",
+        dest="from_currency",
+        type=str,
+        required=True,
+        help="Исходная валюта (например, USD)",
+    )
+    get_rate_parser.add_argument(
+        "--to",
+        dest="to_currency",
+        type=str,
+        required=True,
+        help="Целевая валюта (например, BTC)",
+    )
+
     return parser
 
 
@@ -344,6 +419,8 @@ def main() -> int:
         return cmd_buy(args)
     if args.command == "sell":
         return cmd_sell(args)
+    if args.command == "get-rate":
+        return cmd_get_rate(args)
 
     print(f"Неизвестная команда: {args.command}", file=sys.stderr)
     return 1

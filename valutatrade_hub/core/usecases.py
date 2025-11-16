@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import secrets
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from valutatrade_hub.core.models import Portfolio, User, Wallet
 from valutatrade_hub.core.utils import (
@@ -535,4 +535,176 @@ def sell_currency(currency: str, amount: float, base_currency: str = "USD") -> d
         "rate": rate,
         "revenue_in_base": revenue_in_base,
         "base_currency": base_currency,
+    }
+
+
+def _is_rate_fresh(updated_at_str: str, max_age_minutes: int = 5) -> bool:
+    """
+    Проверить, свежий ли курс.
+
+    Args:
+        updated_at_str: Строка с датой обновления в формате ISO
+        max_age_minutes: Максимальный возраст курса в минутах
+
+    Returns:
+        True если курс свежий, иначе False
+    """
+    try:
+        updated_at = datetime.fromisoformat(updated_at_str)
+        age = datetime.now() - updated_at
+        return age < timedelta(minutes=max_age_minutes)
+    except (ValueError, TypeError):
+        return False
+
+
+def _update_rate_in_cache(
+    from_currency: str, to_currency: str, rate: float, rates_data: dict
+) -> None:
+    """
+    Обновить курс в кеше.
+
+    Args:
+        from_currency: Исходная валюта
+        to_currency: Целевая валюта
+        rate: Курс обмена
+        rates_data: Данные курсов для обновления
+    """
+    rate_key = f"{from_currency}_{to_currency}"
+    now = datetime.now()
+    rates_data[rate_key] = {
+        "rate": rate,
+        "updated_at": now.isoformat(),
+    }
+    rates_data["last_refresh"] = now.isoformat()
+    save_json(RATES_FILE, rates_data)
+
+
+def _get_rate_from_stub(from_currency: str, to_currency: str) -> float:
+    """
+    Получить курс из заглушки (фиксированные курсы).
+
+    Args:
+        from_currency: Исходная валюта
+        to_currency: Целевая валюта
+
+    Returns:
+        Курс обмена
+
+    Raises:
+        ValueError: Если курс не найден
+    """
+    # Фиксированные курсы (заглушка)
+    fallback_rates: dict[str, float] = {
+        "USD": 1.0,
+        "EUR": 1.1,
+        "BTC": 45000.0,
+        "ETH": 3000.0,
+        "RUB": 0.011,
+    }
+
+    # Если валюты одинаковые
+    if from_currency == to_currency:
+        return 1.0
+
+    # Конвертируем через USD
+    if from_currency in fallback_rates and to_currency in fallback_rates:
+        from_to_usd = fallback_rates[from_currency]
+        usd_to_to = 1.0 / fallback_rates[to_currency]
+        return from_to_usd * usd_to_to
+
+    raise ValueError(f"Курс {from_currency}→{to_currency} не найден в заглушке")
+
+
+def get_rate(from_currency: str, to_currency: str) -> dict:
+    """
+    Получить курс обмена между валютами с проверкой кеша.
+
+    Args:
+        from_currency: Исходная валюта
+        to_currency: Целевая валюта
+
+    Returns:
+        Словарь с информацией о курсе:
+        {
+            "from_currency": str,
+            "to_currency": str,
+            "rate": float,
+            "updated_at": str,
+            "reverse_rate": float
+        }
+
+    Raises:
+        ValueError: Если валидация не прошла или курс недоступен
+    """
+    # Валидация
+    from_currency = validate_currency_code(from_currency)
+    to_currency = validate_currency_code(to_currency)
+
+    # Если валюты одинаковые
+    if from_currency == to_currency:
+        now = datetime.now()
+        return {
+            "from_currency": from_currency,
+            "to_currency": to_currency,
+            "rate": 1.0,
+            "updated_at": now.isoformat(),
+            "reverse_rate": 1.0,
+        }
+
+    # Загружаем курсы
+    rates_data = load_json(RATES_FILE)
+
+    # Пытаемся найти курс в кеше
+    rate_key = f"{from_currency}_{to_currency}"
+    rate = None
+    updated_at_str = None
+    needs_update = True
+
+    if rate_key in rates_data and "rate" in rates_data[rate_key]:
+        rate_data = rates_data[rate_key]
+        rate = float(rate_data["rate"])
+        updated_at_str = rate_data.get("updated_at")
+        if updated_at_str and _is_rate_fresh(updated_at_str):
+            needs_update = False
+
+    # Если курс не свежий или не найден, обновляем
+    if needs_update:
+        try:
+            # Пытаемся получить курс из заглушки
+            # (в реальности здесь был бы запрос к Parser Service)
+            rate = _get_rate_from_stub(from_currency, to_currency)
+            _update_rate_in_cache(from_currency, to_currency, rate, rates_data)
+            updated_at_str = datetime.now().isoformat()
+        except ValueError:
+            # Если не удалось получить курс, пробуем обратный
+            reverse_key = f"{to_currency}_{from_currency}"
+            if reverse_key in rates_data and "rate" in rates_data[reverse_key]:
+                reverse_rate_data = rates_data[reverse_key]
+                reverse_rate = float(reverse_rate_data["rate"])
+                rate = 1.0 / reverse_rate
+                updated_at_str = reverse_rate_data.get("updated_at")
+                if updated_at_str and _is_rate_fresh(updated_at_str):
+                    # Обновляем прямой курс на основе обратного
+                    _update_rate_in_cache(from_currency, to_currency, rate, rates_data)
+                    updated_at_str = datetime.now().isoformat()
+                else:
+                    raise ValueError(
+                        f"Курс {from_currency}→{to_currency} недоступен. "
+                        f"Повторите попытку позже."
+                    )
+            else:
+                raise ValueError(
+                    f"Курс {from_currency}→{to_currency} недоступен. "
+                    f"Повторите попытку позже."
+                )
+
+    # Рассчитываем обратный курс
+    reverse_rate = 1.0 / rate if rate != 0 else 0.0
+
+    return {
+        "from_currency": from_currency,
+        "to_currency": to_currency,
+        "rate": rate,
+        "updated_at": updated_at_str or datetime.now().isoformat(),
+        "reverse_rate": reverse_rate,
     }
