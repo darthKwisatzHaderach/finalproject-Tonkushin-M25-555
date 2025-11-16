@@ -7,6 +7,7 @@ import secrets
 from datetime import datetime, timedelta
 
 from valutatrade_hub.core.currencies import get_currency
+from valutatrade_hub.core.decorators import log_action
 from valutatrade_hub.core.exceptions import (
     ApiRequestError,
     CurrencyNotFoundError,
@@ -84,6 +85,7 @@ def require_portfolio() -> Portfolio:
     return portfolio
 
 
+@log_action("REGISTER")
 def register_user(username: str, password: str) -> tuple[User, int]:
     """
     Зарегистрировать нового пользователя.
@@ -204,6 +206,7 @@ def load_portfolio_from_json(user_id: int) -> Portfolio:
     return portfolio
 
 
+@log_action("LOGIN")
 def login_user(username: str, password: str) -> User:
     """
     Войти в систему.
@@ -379,6 +382,7 @@ def save_portfolio_to_json(portfolio: Portfolio) -> None:
     save_json(PORTFOLIOS_FILE, portfolios_data)
 
 
+@log_action("BUY", verbose=True)
 def buy_currency(
     currency: str, amount: float, base_currency: str | None = None
 ) -> dict:
@@ -461,6 +465,7 @@ def buy_currency(
     }
 
 
+@log_action("SELL", verbose=True)
 def sell_currency(
     currency: str, amount: float, base_currency: str | None = None
 ) -> dict:
