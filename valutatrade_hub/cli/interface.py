@@ -584,7 +584,11 @@ def create_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Валютный кошелек - консольное приложение"
     )
-    subparsers = parser.add_subparsers(dest="command", help="Доступные команды")
+    subparsers = parser.add_subparsers(
+        dest="command",
+        help="Доступные команды",
+        metavar="COMMAND",
+    )
 
     # Команда register
     register_parser = subparsers.add_parser(

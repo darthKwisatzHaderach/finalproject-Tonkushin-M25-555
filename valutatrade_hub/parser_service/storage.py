@@ -60,9 +60,16 @@ class RatesStorage:
 
         history_data = self._load_history()
 
+        if history_data is None:
+            history_data = {
+                "source": "ParserService",
+                "last_update": None,
+                "records": [],
+            }
+
         if "records" not in history_data:
             history_data["records"] = []
-            history_data["records"].append(record)
+        history_data["records"].append(record)
         history_data["last_update"] = timestamp.isoformat()
 
         self._save_history_atomic(history_data)
@@ -129,18 +136,18 @@ class RatesStorage:
                 "records": [],
             }
 
-            try:
-                with open(self.history_file, encoding="utf-8") as f:
-                    data = json.load(f)
-                    if "records" not in data:
-                        data["records"] = []
+        try:
+            with open(self.history_file, encoding="utf-8") as f:
+                data = json.load(f)
+                if "records" not in data:
+                    data["records"] = []
                 return data
-            except (json.JSONDecodeError, OSError):
-                return {
-                    "source": "ParserService",
-                    "last_update": None,
-                    "records": [],
-                }
+        except (json.JSONDecodeError, OSError):
+            return {
+                "source": "ParserService",
+                "last_update": None,
+                "records": [],
+            }
 
     def _save_history_atomic(self, data: dict[str, Any]) -> None:
         """
@@ -150,6 +157,9 @@ class RatesStorage:
             data: Данные для сохранения
         """
         temp_file = self.history_file.with_suffix(".tmp")
+
+        # Создаём директорию, если её нет
+        self.history_file.parent.mkdir(parents=True, exist_ok=True)
 
         try:
             with open(temp_file, "w", encoding="utf-8") as f:
@@ -174,17 +184,17 @@ class RatesStorage:
                 "last_refresh": None,
             }
 
-            try:
-                with open(self.rates_file, encoding="utf-8") as f:
-                    data = json.load(f)
-                    if "pairs" not in data:
-                        data["pairs"] = {}
+        try:
+            with open(self.rates_file, encoding="utf-8") as f:
+                data = json.load(f)
+                if "pairs" not in data:
+                    data["pairs"] = {}
                 return data
-            except (json.JSONDecodeError, OSError):
-                return {
-                    "pairs": {},
-                    "last_refresh": None,
-                }
+        except (json.JSONDecodeError, OSError):
+            return {
+                "pairs": {},
+                "last_refresh": None,
+            }
 
     def _save_rates_cache_atomic(self, data: dict[str, Any]) -> None:
         """
@@ -194,6 +204,9 @@ class RatesStorage:
             data: Данные для сохранения
         """
         temp_file = self.rates_file.with_suffix(".tmp")
+
+        # Создаём директорию, если её нет
+        self.rates_file.parent.mkdir(parents=True, exist_ok=True)
 
         try:
             with open(temp_file, "w", encoding="utf-8") as f:
